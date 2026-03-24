@@ -1,0 +1,7 @@
+streamlit
+folium
+streamlit-folium
+firebase-admin
+pandas
+requests
+streamlit-autorefresh
