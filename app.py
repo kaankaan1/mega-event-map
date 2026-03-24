@@ -68,7 +68,7 @@ if not firebase_admin._apps:
             'databaseURL': 'https://megaeventmap-default-rtdb.firebaseio.com/' 
         })
 
-DEFAULT_COORDS = [46.3091, -79.4608]
+DEFAULT_COORDS = [44.3011, -78.3333] # Peterborough, Ontario
 
 # --- SESSION STATES ---
 if 'has_submitted' not in st.session_state:
