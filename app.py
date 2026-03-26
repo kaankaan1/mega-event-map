@@ -31,24 +31,17 @@ hide_streamlit_style = """
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# --- FIREBASE SETUP (YENİ VE GÜVENLİ FORMAT) ---
+# --- FIREBASE SETUP ---
 if not firebase_admin._apps:
     if 'firebase_credentials' in st.secrets:
-        # Streamlit Secrets'tan yeni formatı okur
         key_dict = dict(st.secrets["firebase_credentials"])
         db_url = st.secrets["firebase_database"]["url"]
         cred = credentials.Certificate(key_dict)
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': db_url
-        })
+        firebase_admin.initialize_app(cred, {'databaseURL': db_url})
     else:
-        # Lokal testler için yedek plan (dosya adını güncelledim)
         cred = credentials.Certificate("firebase_key.json")
-        firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://cancastlivemap-b9214-default-rtdb.firebaseio.com/' 
-        })
+        firebase_admin.initialize_app(cred, {'databaseURL': 'https://cancastlivemap-b9214-default-rtdb.firebaseio.com/'})
 
-# PETERBOROUGH MERKEZ KOORDİNATLARI
 DEFAULT_COORDS = [44.3011, -78.3333]
 
 # --- SESSION STATES ---
@@ -62,7 +55,6 @@ with st.sidebar:
     st.header("🔒 Admin Access")
     admin_pass = st.text_input("Enter Password:", type="password")
     
-    # YENİ MÜŞTERİ İÇİN YENİ ŞİFRE
     if admin_pass == "Cancast2026":
         st.success("Unlocked!")
         st.divider()
@@ -81,7 +73,6 @@ with st.sidebar:
                         loc = response['results'][0]['geometry']['location']
                         city_n = clean_ex
                         components = response['results'][0]['address_components']
-                        
                         for comp in components:
                             if "locality" in comp["types"] or "postal_town" in comp["types"]:
                                 city_n = comp["long_name"]
@@ -91,16 +82,11 @@ with st.sidebar:
                                 if "administrative_area_level_3" in comp["types"] or "sublocality" in comp["types"] or "neighborhood" in comp["types"]:
                                     city_n = comp["long_name"]
                                     break
-                                    
                         db.reference('attendees').push({
-                            "lat": loc['lat'], "lon": loc['lng'], "city": city_n,
-                            "type": "exhibitor",
-                            "company": ex_company
+                            "lat": loc['lat'], "lon": loc['lng'], "city": city_n, "type": "exhibitor", "company": ex_company
                         })
                         st.success(f"{ex_company} added!")
                         st.rerun()
-                    else:
-                        st.error("Google API Error. Check code.")
                 except Exception as e:
                     st.error(f"Error: {e}")
             else:
@@ -108,14 +94,14 @@ with st.sidebar:
 
         st.divider()
         st.subheader("📊 Data Management")
-        ref = db.reference('attendees')
-        data_dict = ref.get()
-        data_list_admin = list(data_dict.values()) if data_dict else []
+        # Admin panelinde kalkan yok, canlı veriyi çeker
+        ref_admin = db.reference('attendees')
+        data_dict_admin = ref_admin.get()
+        data_list_admin = list(data_dict_admin.values()) if data_dict_admin else []
         
         if data_list_admin:
             att_count = sum(1 for d in data_list_admin if d.get("type", "attendee") == "attendee")
             exh_count = sum(1 for d in data_list_admin if d.get("type") == "exhibitor")
-            
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"""
@@ -132,14 +118,14 @@ with st.sidebar:
                     </div>
                 """, unsafe_allow_html=True)
             st.write("")
-            
             df = pd.DataFrame(data_list_admin)
             csv = df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Download Data (CSV)", data=csv, file_name='event_data.csv', mime='text/csv')
-            
             st.divider() 
             if st.button("🗑️ Wipe All Data"):
                 db.reference('attendees').delete()
+                # Kalkanı temizle ki harita anında boşalsın
+                st.cache_data.clear()
                 st.rerun()
         else:
             st.info("No data yet.")
@@ -147,16 +133,13 @@ with st.sidebar:
 # --- MAIN PAGE UI ---
 col_l, col_m, col_r = st.columns([1, 1.5, 1])
 with col_m:
-    try:
-        st.image("logo.png", use_container_width=True)
-    except:
-        pass
+    try: st.image("logo.png", use_container_width=True)
+    except: pass
 
 st.markdown("<h1 style='text-align: center;'>📍 What area are you coming in from?</h1>", unsafe_allow_html=True)
 
 if not st.session_state.has_submitted:
     st.markdown("<p style='text-align: center;'>Enter your Canadian postal code to see how far our community reaches:</p>", unsafe_allow_html=True)
-    
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         postal_code_input = st.text_input("Postal Code (e.g., P1B 8G6):", max_chars=7, label_visibility="collapsed", placeholder="P1B 8G6")
@@ -169,12 +152,10 @@ if not st.session_state.has_submitted:
                 api_key = st.secrets["GOOGLE_MAPS_API_KEY"]
                 url = f"https://maps.googleapis.com/maps/api/geocode/json?address={clean_code},+Canada&key={api_key}"
                 response = requests.get(url).json()
-                
                 if response['status'] == 'OK':
                     location = response['results'][0]['geometry']['location']
                     city_name = clean_code
                     components = response['results'][0]['address_components']
-                    
                     for comp in components:
                         if "locality" in comp["types"] or "postal_town" in comp["types"]:
                             city_name = comp["long_name"]
@@ -184,14 +165,13 @@ if not st.session_state.has_submitted:
                             if "administrative_area_level_3" in comp["types"] or "sublocality" in comp["types"] or "neighborhood" in comp["types"]:
                                 city_name = comp["long_name"]
                                 break
-                    
                     db.reference('attendees').push({
-                        "lat": location['lat'], "lon": location['lng'], "city": city_name,
-                        "type": "attendee" 
+                        "lat": location['lat'], "lon": location['lng'], "city": city_name, "type": "attendee" 
                     })
-                    
                     st.session_state.new_user_loc = {"lat": location['lat'], "lon": location['lng'], "city": city_name}
                     st.session_state.has_submitted = True
+                    # Biri yeni pin atınca kalkanı zorla temizliyoruz ki haritada anında görünsün
+                    st.cache_data.clear()
                     st.rerun() 
                 else:
                     st.error("Postal code not found.")
@@ -202,11 +182,16 @@ if not st.session_state.has_submitted:
 else:
     st.success("🎉 Thank you! Your location has been added.")
 
-# --- FETCH & RENDER MAP ---
+# --- FETCH & RENDER MAP (KURŞUNGEÇİRMEZ KALKAN BURADA) ---
 st.divider()
-ref = db.reference('attendees')
-data_dict = ref.get()
-data_list = list(data_dict.values()) if data_dict else []
+
+@st.cache_data(ttl=15)
+def get_cached_data():
+    ref = db.reference('attendees')
+    d_dict = ref.get()
+    return list(d_dict.values()) if d_dict else []
+
+data_list = get_cached_data()
 
 st.markdown("<p style='text-align: center; font-size: 18px;'><b>Legend:</b> ⭐ Exhibitors (Red Stars) &nbsp; | &nbsp; 📍 Attendees (Blue Pins)</p>", unsafe_allow_html=True)
 
@@ -226,26 +211,17 @@ for data in data_list:
         jitter_lon = random.uniform(-0.003, 0.003)
         random.seed()
         folium.Marker(
-            location=[data["lat"] + jitter_lat, data["lon"] + jitter_lon],
-            tooltip=comp_name,
-            icon=folium.Icon(color="red", icon="star", prefix="fa")
+            location=[data["lat"] + jitter_lat, data["lon"] + jitter_lon], tooltip=comp_name, icon=folium.Icon(color="red", icon="star", prefix="fa")
         ).add_to(m)
     else:
         p_text = data.get("city", "")
         if is_newest:
-            # GÜNCELLEME: Hala turuncu yıldız ama yazısı Attendee
             folium.Marker(
-                location=[data["lat"], data["lon"]],
-                popup="Attendee", # Popup yazısı değişti
-                tooltip="Attendee", # Mouse hover yazısı değişti
-                icon=folium.Icon(color="orange", icon="star")
+                location=[data["lat"], data["lon"]], popup="Attendee", tooltip="Attendee", icon=folium.Icon(color="orange", icon="star")
             ).add_to(m)
         else:
             folium.Marker(
-                location=[data["lat"], data["lon"]],
-                popup=p_text,
-                tooltip="Attendee",
-                icon=folium.Icon(color="blue", icon="map-pin", prefix="fa")
+                location=[data["lat"], data["lon"]], popup=p_text, tooltip="Attendee", icon=folium.Icon(color="blue", icon="map-pin", prefix="fa")
             ).add_to(marker_cluster)
 
 st_folium(m, use_container_width=True, height=500, returned_objects=[])
