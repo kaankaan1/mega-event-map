@@ -14,8 +14,16 @@ from streamlit_autorefresh import st_autorefresh
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Cancast Live Attendee Map", layout="wide", initial_sidebar_state="auto")
 
-# --- AUTO REFRESH ---
-st_autorefresh(interval=15 * 1000, key="datarefresh")
+# --- SESSION STATES ---
+if 'has_submitted' not in st.session_state:
+    st.session_state.has_submitted = False
+if 'new_user_loc' not in st.session_state:
+    st.session_state.new_user_loc = None
+
+# --- AUTO REFRESH (AKILLI YENİLEME VE 30 SANİYE) ---
+# Kişi posta kodu girdiyse yenilemeyi tamamen durdur. Değilse 30 saniyede bir yenile.
+if not st.session_state.has_submitted:
+    st_autorefresh(interval=30 * 1000, key="datarefresh")
 
 # --- CSS HACKS ---
 hide_streamlit_style = """
@@ -43,12 +51,6 @@ if not firebase_admin._apps:
         firebase_admin.initialize_app(cred, {'databaseURL': 'https://cancastlivemap-b9214-default-rtdb.firebaseio.com/'})
 
 DEFAULT_COORDS = [44.3011, -78.3333]
-
-# --- SESSION STATES ---
-if 'has_submitted' not in st.session_state:
-    st.session_state.has_submitted = False
-if 'new_user_loc' not in st.session_state:
-    st.session_state.new_user_loc = None
 
 # --- SIDEBAR: ADMIN PANEL ---
 with st.sidebar:
@@ -94,7 +96,6 @@ with st.sidebar:
 
         st.divider()
         st.subheader("📊 Data Management")
-        # Admin panelinde kalkan yok, canlı veriyi çeker
         ref_admin = db.reference('attendees')
         data_dict_admin = ref_admin.get()
         data_list_admin = list(data_dict_admin.values()) if data_dict_admin else []
@@ -124,7 +125,6 @@ with st.sidebar:
             st.divider() 
             if st.button("🗑️ Wipe All Data"):
                 db.reference('attendees').delete()
-                # Kalkanı temizle ki harita anında boşalsın
                 st.cache_data.clear()
                 st.rerun()
         else:
@@ -170,7 +170,6 @@ if not st.session_state.has_submitted:
                     })
                     st.session_state.new_user_loc = {"lat": location['lat'], "lon": location['lng'], "city": city_name}
                     st.session_state.has_submitted = True
-                    # Biri yeni pin atınca kalkanı zorla temizliyoruz ki haritada anında görünsün
                     st.cache_data.clear()
                     st.rerun() 
                 else:
@@ -182,10 +181,10 @@ if not st.session_state.has_submitted:
 else:
     st.success("🎉 Thank you! Your location has been added.")
 
-# --- FETCH & RENDER MAP (KURŞUNGEÇİRMEZ KALKAN BURADA) ---
+# --- FETCH & RENDER MAP (30 SANİYE KALKAN) ---
 st.divider()
 
-@st.cache_data(ttl=15)
+@st.cache_data(ttl=30)
 def get_cached_data():
     ref = db.reference('attendees')
     d_dict = ref.get()
