@@ -12,63 +12,44 @@ import re
 from streamlit_autorefresh import st_autorefresh
 
 # --- PAGE CONFIGURATION ---
-# Tarayıcı sekmesindeki başlığı da marka adıyla güncelledim
 st.set_page_config(page_title="Cancast Live Attendee Map", layout="wide", initial_sidebar_state="auto")
 
-# --- AUTO REFRESH: Her 15 saniyede bir sayfayı otomatik yeniler ---
+# --- AUTO REFRESH ---
 st_autorefresh(interval=15 * 1000, key="datarefresh")
 
-# --- CSS HACKS: STABLE AND SECURE VERSION ---
-# Buton rengini logonun kırmızısına göre güncelledim
+# --- CSS HACKS ---
 hide_streamlit_style = """
             <style>
             #MainMenu {visibility: hidden;} 
             footer {visibility: hidden;}    
-            
-            .stApp {
-                background-color: white !important;
-                color: black !important;
-            }
-            
-            [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
-                color: black !important;
-            }
-            
-            [data-testid="collapsedControl"] svg {
-                fill: black !important;
-            }
-            
-            /* GÜNCELLEME: Submit Buton Rengi (Cancast Red) */
-            div.stButton > button {
-                background-color: #E31A1C !important; /* Logonun canlı kırmızısı */
-                color: white !important; 
-                border: none;
-            }
-            div.stButton > button:hover {
-                background-color: #B71C1C !important; /* Üzerine gelince biraz daha koyu kırmızı */
-                color: white !important;
-            }
+            .stApp { background-color: white !important; color: black !important; }
+            [data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: black !important; }
+            [data-testid="collapsedControl"] svg { fill: black !important; }
+            div.stButton > button { background-color: #E31A1C !important; color: white !important; border: none; }
+            div.stButton > button:hover { background-color: #B71C1C !important; color: white !important; }
             </style>
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# --- FIREBASE SETUP (REALTIME DATABASE) ---
+# --- FIREBASE SETUP (YENİ VE GÜVENLİ FORMAT) ---
 if not firebase_admin._apps:
-    if 'firebase' in st.secrets:
-        key_dict = json.loads(st.secrets["firebase"]["my_project_settings"])
-        db_url = st.secrets["firebase"].get("database_url", "")
+    if 'firebase_credentials' in st.secrets:
+        # Streamlit Secrets'tan yeni formatı okur
+        key_dict = dict(st.secrets["firebase_credentials"])
+        db_url = st.secrets["firebase_database"]["url"]
         cred = credentials.Certificate(key_dict)
         firebase_admin.initialize_app(cred, {
             'databaseURL': db_url
         })
     else:
-        # Lokal testlerin için
+        # Lokal testler için yedek plan
         cred = credentials.Certificate("firebase_key.json")
         firebase_admin.initialize_app(cred, {
-            'databaseURL': 'https://megaeventmap-default-rtdb.firebaseio.com/' 
+            'databaseURL': 'https://cancastlivemap-b9214-default-rtdb.firebaseio.com/' 
         })
 
-DEFAULT_COORDS = [44.3011, -78.3333] # Peterborough, Ontario
+# PETERBOROUGH MERKEZ KOORDİNATLARI
+DEFAULT_COORDS = [44.3011, -78.3333]
 
 # --- SESSION STATES ---
 if 'has_submitted' not in st.session_state:
@@ -76,14 +57,13 @@ if 'has_submitted' not in st.session_state:
 if 'new_user_loc' not in st.session_state:
     st.session_state.new_user_loc = None
 
-
-# --- SIDEBAR: HIDDEN ADMIN PANEL ---
+# --- SIDEBAR: ADMIN PANEL ---
 with st.sidebar:
     st.header("🔒 Admin Access")
     admin_pass = st.text_input("Enter Password:", type="password")
     
-    # Şifre NorthBay2026 olarak kaldı, istersen değiştirebilirsin
-    if admin_pass == "NorthBay2026":
+    # YENİ MÜŞTERİ İÇİN YENİ ŞİFRE
+    if admin_pass == "Cancast2026":
         st.success("Unlocked!")
         st.divider()
         st.subheader("🏢 Add Exhibitor (Red Star)")
@@ -136,7 +116,6 @@ with st.sidebar:
             att_count = sum(1 for d in data_list_admin if d.get("type", "attendee") == "attendee")
             exh_count = sum(1 for d in data_list_admin if d.get("type") == "exhibitor")
             
-            # Bu counters'ların renklerini de logonun kırmızı tonlarıyla güncelleyebiliriz ilerde istersen
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown(f"""
@@ -166,14 +145,12 @@ with st.sidebar:
             st.info("No data yet.")
 
 # --- MAIN PAGE UI ---
-# GÜNCELLEME: Sayfanın en üstünde logonun gösterilmesi
-col_l, col_m, col_r = st.columns([1, 1.5, 1]) # Ortada daha geniş bir alan açtım
+col_l, col_m, col_r = st.columns([1, 1.5, 1])
 with col_m:
     try:
-        # image_5.png dosyasının adını logo.png yapıp app.py ile aynı klasöre koymalısın
         st.image("logo.png", use_container_width=True)
     except:
-        st.warning("Please upload image_5.png as 'logo.png' in the same folder.")
+        pass
 
 st.markdown("<h1 style='text-align: center;'>📍 What area are you coming in from?</h1>", unsafe_allow_html=True)
 
@@ -256,7 +233,6 @@ for data in data_list:
     else:
         p_text = data.get("city", "")
         if is_newest:
-            # En son girilen pin turuncu yıldız olarak kalıyor
             folium.Marker(
                 location=[data["lat"], data["lon"]],
                 popup="You are here!",
