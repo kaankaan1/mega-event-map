@@ -42,7 +42,7 @@ if not firebase_admin._apps:
             'databaseURL': db_url
         })
     else:
-        # Lokal testler için yedek plan
+        # Lokal testler için yedek plan (dosya adını güncelledim)
         cred = credentials.Certificate("firebase_key.json")
         firebase_admin.initialize_app(cred, {
             'databaseURL': 'https://cancastlivemap-b9214-default-rtdb.firebaseio.com/' 
@@ -233,10 +233,11 @@ for data in data_list:
     else:
         p_text = data.get("city", "")
         if is_newest:
+            # GÜNCELLEME: Hala turuncu yıldız ama yazısı Attendee
             folium.Marker(
                 location=[data["lat"], data["lon"]],
-                popup="You are here!",
-                tooltip="You are here!",
+                popup="Attendee", # Popup yazısı değişti
+                tooltip="Attendee", # Mouse hover yazısı değişti
                 icon=folium.Icon(color="orange", icon="star")
             ).add_to(m)
         else:
