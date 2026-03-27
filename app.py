@@ -20,9 +20,11 @@ if 'has_submitted' not in st.session_state:
 if 'new_user_loc' not in st.session_state:
     st.session_state.new_user_loc = None
 
-# --- AUTO REFRESH (AKILLI YENİLEME VE 30 SANİYE) ---
-# Kişi posta kodu girdiyse yenilemeyi tamamen durdur. Değilse 30 saniyede bir yenile.
-if not st.session_state.has_submitted:
+# --- DEV EKRAN MODU (GİZLİ LİNK) KONTROLÜ ---
+# URL'nin sonunda "?mode=live" varsa TV ekranı kabul et ve 30 saniyede bir yenile.
+# Normal kullanıcılar için otomatik yenileme YAPMA (Sunucuyu %100 rahatlatır).
+is_live_mode = st.query_params.get("mode") == "live"
+if is_live_mode:
     st_autorefresh(interval=30 * 1000, key="datarefresh")
 
 # --- CSS HACKS ---
@@ -121,7 +123,7 @@ with st.sidebar:
             st.write("")
             df = pd.DataFrame(data_list_admin)
             csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Data (CSV)", data=csv, file_name='event_data.csv', mime='text/csv')
+            st.download_button("📥 Download Data (CSV)", data=csv, file_name='cancast_event_data.csv', mime='text/csv')
             st.divider() 
             if st.button("🗑️ Wipe All Data"):
                 db.reference('attendees').delete()
@@ -179,7 +181,7 @@ if not st.session_state.has_submitted:
         else:
             st.error("Please enter a valid code.")
 else:
-    st.success("🎉 Thank you! Your location has been added.")
+    st.success("🎉 Thank you! Your location has been added to the map.")
 
 # --- FETCH & RENDER MAP (30 SANİYE KALKAN) ---
 st.divider()
@@ -192,35 +194,52 @@ def get_cached_data():
 
 data_list = get_cached_data()
 
+# --- SUNUCU TARAFINDA VERİ GRUPLAMASI (BİNLERCE İĞNEYİ BİRLEŞTİRİR) ---
+attendee_summary = {}
+exhibitors = []
+
+for data in data_list:
+    if data.get("type") == "exhibitor":
+        exhibitors.append(data)
+    else:
+        city = data.get("city", "Unknown")
+        if city not in attendee_summary:
+            attendee_summary[city] = {"lat": data.get("lat"), "lon": data.get("lon"), "count": 0}
+        attendee_summary[city]["count"] += 1
+
 st.markdown("<p style='text-align: center; font-size: 18px;'><b>Legend:</b> ⭐ Exhibitors (Red Stars) &nbsp; | &nbsp; 📍 Attendees (Blue Pins)</p>", unsafe_allow_html=True)
 
 m = folium.Map(location=DEFAULT_COORDS, zoom_start=6)
 marker_cluster = MarkerCluster(maxClusterRadius=35).add_to(m)
 
-for data in data_list:
-    is_ex = data.get("type") == "exhibitor"
+# 1. Exhibitor (Firma) İğneleri
+for ex in exhibitors:
+    comp_name = ex.get("company", "Exhibitor")
+    random.seed(comp_name)
+    jitter_lat = random.uniform(-0.003, 0.003)
+    jitter_lon = random.uniform(-0.003, 0.003)
+    folium.Marker(
+        location=[ex["lat"] + jitter_lat, ex["lon"] + jitter_lon], tooltip=comp_name, icon=folium.Icon(color="red", icon="star", prefix="fa")
+    ).add_to(m)
+
+# 2. Gruplanmış Ziyaretçi İğneleri
+for city, info in attendee_summary.items():
+    count = info["count"]
     is_newest = False
-    if st.session_state.new_user_loc and data["lat"] == st.session_state.new_user_loc["lat"] and data["lon"] == st.session_state.new_user_loc["lon"]:
+    
+    if st.session_state.new_user_loc and st.session_state.new_user_loc["city"] == city:
         is_newest = True
 
-    if is_ex:
-        comp_name = data.get("company", "Exhibitor")
-        random.seed(comp_name)
-        jitter_lat = random.uniform(-0.003, 0.003)
-        jitter_lon = random.uniform(-0.003, 0.003)
-        random.seed()
+    popup_text = f"<div style='text-align:center;'><b>{city}</b><br>Attendees: {count}</div>"
+    tooltip_text = f"{city} ({count} Attendees)"
+
+    if is_newest:
         folium.Marker(
-            location=[data["lat"] + jitter_lat, data["lon"] + jitter_lon], tooltip=comp_name, icon=folium.Icon(color="red", icon="star", prefix="fa")
+            location=[info["lat"], info["lon"]], popup=popup_text, tooltip="📍 You are here!", icon=folium.Icon(color="orange", icon="star")
         ).add_to(m)
     else:
-        p_text = data.get("city", "")
-        if is_newest:
-            folium.Marker(
-                location=[data["lat"], data["lon"]], popup="Attendee", tooltip="Attendee", icon=folium.Icon(color="orange", icon="star")
-            ).add_to(m)
-        else:
-            folium.Marker(
-                location=[data["lat"], data["lon"]], popup=p_text, tooltip="Attendee", icon=folium.Icon(color="blue", icon="map-pin", prefix="fa")
-            ).add_to(marker_cluster)
+        folium.Marker(
+            location=[info["lat"], info["lon"]], popup=popup_text, tooltip=tooltip_text, icon=folium.Icon(color="blue", icon="users", prefix="fa")
+        ).add_to(marker_cluster)
 
 st_folium(m, use_container_width=True, height=500, returned_objects=[])
