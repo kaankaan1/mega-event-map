@@ -21,7 +21,6 @@ if 'new_user_loc' not in st.session_state:
     st.session_state.new_user_loc = None
 
 # --- DEV EKRAN MODU (GİZLİ LİNK) KONTROLÜ ---
-# URL'nin sonunda "?mode=live" varsa TV ekranı kabul et ve 30 saniyede bir yenile.
 is_live_mode = st.query_params.get("mode") == "live"
 if is_live_mode:
     st_autorefresh(interval=30 * 1000, key="datarefresh")
@@ -69,13 +68,8 @@ with st.sidebar:
             clean_ex = re.sub(r'[^A-Z0-9]', '', ex_code.upper())
             if len(clean_ex) >= 3 and ex_company:
                 try:
-                    if len(clean_ex) == 6:
-                        query_ex = f"{clean_ex[:3]} {clean_ex[3:]}"
-                    else:
-                        query_ex = clean_ex
-                    
                     api_key = st.secrets["GOOGLE_MAPS_API_KEY"]
-                    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={query_ex},+Canada&key={api_key}"
+                    url = f"https://maps.googleapis.com/maps/api/geocode/json?address={clean_ex},+Canada&key={api_key}"
                     response = requests.get(url).json()
                     if response['status'] == 'OK':
                         loc = response['results'][0]['geometry']['location']
@@ -144,7 +138,6 @@ with col_m:
 
 st.markdown("<h1 style='text-align: center;'>📍 What area are you coming in from?</h1>", unsafe_allow_html=True)
 
-# Form sadece kullanıcı henüz giriş yapmadıysa görünür (Spam Koruması)
 if not st.session_state.has_submitted:
     st.markdown("<p style='text-align: center;'>Enter your Canadian postal code to see how far our community reaches:</p>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -156,14 +149,8 @@ if not st.session_state.has_submitted:
         clean_code = re.sub(r'[^A-Z0-9]', '', postal_code_input.upper())
         if len(clean_code) >= 3:
             try:
-                # Kırsal Kod Çözücü: Google'a gönderirken araya boşluk ekle (Örn: P0H 2G0)
-                if len(clean_code) == 6:
-                    query_code = f"{clean_code[:3]} {clean_code[3:]}"
-                else:
-                    query_code = clean_code
-
                 api_key = st.secrets["GOOGLE_MAPS_API_KEY"]
-                url = f"https://maps.googleapis.com/maps/api/geocode/json?address={query_code},+Canada&key={api_key}"
+                url = f"https://maps.googleapis.com/maps/api/geocode/json?address={clean_code},+Canada&key={api_key}"
                 response = requests.get(url).json()
                 if response['status'] == 'OK':
                     location = response['results'][0]['geometry']['location']
@@ -224,7 +211,6 @@ st.markdown("<p style='text-align: center; font-size: 18px;'><b>Legend:</b> ⭐ 
 m = folium.Map(location=DEFAULT_COORDS, zoom_start=6, tiles="cartodbpositron")
 marker_cluster = MarkerCluster(maxClusterRadius=35).add_to(m)
 
-# 1. Exhibitor İğneleri
 for ex in exhibitors:
     comp_name = ex.get("company", "Exhibitor")
     random.seed(comp_name)
@@ -234,7 +220,6 @@ for ex in exhibitors:
         location=[ex["lat"] + jitter_lat, ex["lon"] + jitter_lon], tooltip=comp_name, icon=folium.Icon(color="red", icon="star", prefix="fa")
     ).add_to(m)
 
-# 2. Gruplanmış Ziyaretçi İğneleri
 for city, info in attendee_summary.items():
     count = info["count"]
     is_newest = False
